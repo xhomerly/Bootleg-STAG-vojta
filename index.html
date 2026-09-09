@@ -559,23 +559,43 @@
             }
 
             bindEvents() {
-                // Kaskáda tlačítka
-                document.getElementById('btnCasc1')?.addEventListener('click', () => {
-                    this.fetchCascadeStep(1, '/student/getStudentInfo?osCislo={VAL}', 'studentNumber', 'inStplIdno');
-                });
-                document.getElementById('btnCasc2')?.addEventListener('click', () => {
-                    this.fetchCascadeStep(2, '/programy/getStrukturaPlanu?stplIdno={VAL}', 'inStplIdno', 'inSespIdno');
-                });
-                document.getElementById('btnCasc3')?.addEventListener('click', () => {
-                    this.fetchCascadeStep(3, '/programy/getBlokySegmentu?sespIdno={VAL}', 'inSespIdno', 'inBlokIdno');
-                });
-                document.getElementById('btnCasc4')?.addEventListener('click', () => {
-                    this.fetchCascadeStep(4, '/predmety/getPredmetyByBlok?blokIdno={VAL}', 'inBlokIdno', null);
+                const updateLink = (endpointTemplate, queryIdKey) => {
+                    const val = document.getElementById(queryIdKey).value.trim() || '{VAL}';
+                    const url = `${this.getBaseUrl()}${endpointTemplate.replace('{VAL}', val)}&outputFormat=JSON`;
+                    this.setLink(url);
+                };
+
+                // KROK 1: Plány studenta
+                const tpl1 = '/programy/getPlanyStudenta?osCislo={VAL}';
+                const btn1 = document.getElementById('btnCasc1');
+                btn1?.addEventListener('click', () => this.fetchCascadeStep(1, tpl1, 'studentNumber', 'inStplIdno'));
+                btn1?.addEventListener('mouseenter', () => updateLink(tpl1, 'studentNumber'));
+
+                // KROK 2: Segmenty plánu
+                const tpl2 = '/programy/getStrukturaPlanu?stplIdno={VAL}';
+                const btn2 = document.getElementById('btnCasc2');
+                btn2?.addEventListener('click', () => this.fetchCascadeStep(2, tpl2, 'inStplIdno', 'inSespIdno'));
+                btn2?.addEventListener('mouseenter', () => updateLink(tpl2, 'inStplIdno'));
+
+                // KROK 3: Bloky segmentu
+                const tpl3 = '/programy/getBlokySegmentu?sespIdno={VAL}';
+                const btn3 = document.getElementById('btnCasc3');
+                btn3?.addEventListener('click', () => this.fetchCascadeStep(3, tpl3, 'inSespIdno', 'inBlokIdno'));
+                btn3?.addEventListener('mouseenter', () => updateLink(tpl3, 'inSespIdno'));
+
+                // KROK 4: Zobrazit předměty (opraveno na /predmety)
+                const tpl4 = '/predmety/getPredmetyByBlok?blokIdno={VAL}';
+                const btn4 = document.getElementById('btnCasc4');
+                btn4?.addEventListener('click', () => this.fetchCascadeStep(4, tpl4, 'inBlokIdno', null));
+                btn4?.addEventListener('mouseenter', () => {
+                    const rawVal = document.getElementById('inBlokIdno').value;
+                    const firstVal = rawVal.split(',')[0].trim() || '{VAL}';
+                    const url = `${this.getBaseUrl()}${tpl4.replace('{VAL}', firstVal)}&outputFormat=JSON`;
+                    this.setLink(url);
                 });
 
                 // Promazání paměti
                 document.getElementById('btnClearData')?.addEventListener('click', () => {
-                    // Místo alert/confirm rovnou promažeme paměť dle předchozí domluvy
                     localStorage.removeItem('stag_appState');
                     this.planSubjects = [];
                     this.activeSubjectCodes.clear();
@@ -600,7 +620,6 @@
                             this.renderCatalog();
                             this.saveAppState();
                             
-                            // Vyčištění políček po přidání
                             document.getElementById('customKatedra').value = '';
                             document.getElementById('customZkratka').value = '';
                         }
@@ -617,7 +636,6 @@
                         this.processImportedData(data);
                         pasteDialog?.close();
                     } catch (err) {
-                        // Nemůžeme použít alert dle tvých pravidel, tak chybu vložíme do textarey
                         document.getElementById('pasteTextarea').value = 'Chyba při čtení JSONu. Ujistěte se, že jde o platný formát.\n\n' + err.message;
                     }
                 });
@@ -692,7 +710,6 @@
                             if (zachranenyStatus) {
                                 // STAG v Kroku 4 "ztratí" název bloku. 
                                 // Proto data uměle obalíme hlavičkou blokInfo, kterou jsme si zapamatovali v Kroku 3.
-                                // processImportedData() pak na toto blokInfo narazí a uplatní správnou gramatiku (A/B/C).
                                 const umelyNazev = zachranenyStatus === 'A' ? 'povinné' : (zachranenyStatus === 'B' ? 'povinně volitelné' : 'volitelné');
                                 allData.push({
                                     blokInfo: { nazev: umelyNazev },
@@ -720,14 +737,13 @@
                     const data = await this.fetchStagApi(fullUrl);
                     document.getElementById('cascadeOutput').value = JSON.stringify(data, null, 2);
 
-                    // TADY JE TO KOUZLO: Pokud stahujeme Krok 3 (Bloky), STAG nám pošle ID i Název bloku.
-                    // Zapamatujeme si to do paměti (cache), abychom to v Kroku 4 mohli použít!
+                    // Zapamatování hlaviček z Kroku 3 pro Krok 4
                     if (stepNum === 3) {
                         this.blockStatusCache = {};
                         const zapamatujBloky = (obj) => {
                             if (!obj) return;
                             if (obj.blokIdno && obj.nazev) {
-                                let s = 'C'; // Výchozí
+                                let s = 'C';
                                 const n = obj.nazev.toLowerCase();
                                 if (n.includes('povinně volitel') || n.includes('skupina b')) s = 'B';
                                 else if (n.includes('povinn') || n.includes('skupina a')) s = 'A';
@@ -769,47 +785,34 @@
                 let scheduleActions = [];
                 let catalogSubjects = [];
 
-                // Rekurzivní funkce, která prohledá celý JSON strom do hloubky
                 const traverseAndExtract = (node, currentStatus = 'C') => {
                     if (!node) return;
 
                     let status = currentStatus;
                     
-                    // Pokud najdeme hlavičku bloku (blokInfo), aktualizujeme dědičný status pro předměty uvnitř
+                    // Rozpoznání z hlavičky bloku
                     if (node.blokInfo && node.blokInfo.nazev) {
                         const nazev = node.blokInfo.nazev.toLowerCase();
-                        
-                        // Rozpoznání české gramatiky - Záleží na přesném pořadí! 
-                        // Slovo "povinně volitelné" obsahuje slovo "povinné", proto musí být testováno jako první.
-                        if (nazev.includes('povinně volitel') || nazev.includes('skupina b')) {
-                            status = 'B';
-                        } else if (nazev.includes('povinn') || nazev.includes('skupina a')) {
-                            status = 'A';
-                        } else if (nazev.includes('volitel') || nazev.includes('skupina c')) {
-                            status = 'C';
-                        }
+                        if (nazev.includes('povinně volitel') || nazev.includes('skupina b')) status = 'B';
+                        else if (nazev.includes('povinn') || nazev.includes('skupina a')) status = 'A';
+                        else if (nazev.includes('volitel') || nazev.includes('skupina c')) status = 'C';
                     }
 
                     if (Array.isArray(node)) {
                         node.forEach(item => traverseAndExtract(item, status));
                     } else if (typeof node === 'object') {
-                        // 1. Identifikace Rozvrhové akce
                         if ((node.typAkce || node.typAkceZkr || node.hodinaSkutOd || node.hodinaOd !== undefined) && node.katedra && node.predmet) {
                             scheduleActions.push(node);
-                            return; // Uvnitř rozvrhové akce už další předměty hledat nemusíme
+                            return; 
                         }
                         
-                        // 2. Identifikace Předmětu pro Katalog
                         if (node.katedra && node.zkratka && node.nazev && !node.typAkce) {
-                            
-                            // 2.5 Hledání statutu přímo v předmětu (Když jsme v Kroku 4 a chybí nám hlavička bloku)
-                            let finalStatus = status; // vezme 'C' z hlavičky nebo fallbacku
+                            // Rozpoznání přímo u předmětu (záloha)
+                            let finalStatus = status; 
                             const directStatus = node.statutBloku || node.statutPredmetu || node.statut;
                             if (directStatus && typeof directStatus === 'string') {
                                 const s = directStatus.toUpperCase().trim();
-                                if (s === 'A' || s === 'B' || s === 'C') {
-                                    finalStatus = s;
-                                }
+                                if (s === 'A' || s === 'B' || s === 'C') finalStatus = s;
                             }
 
                             catalogSubjects.push({
@@ -822,7 +825,6 @@
                             });
                         }
 
-                        // Jdeme hlouběji do dalších objektů/polí uvnitř
                         for (const key in node) {
                             if (typeof node[key] === 'object') {
                                 traverseAndExtract(node[key], status);
@@ -833,7 +835,6 @@
 
                 traverseAndExtract(data);
 
-                // Zpracování podle toho, co jsme našli
                 if (scheduleActions.length > 0) {
                     this.appendScheduleEvents(scheduleActions);
                     return;
@@ -841,16 +842,13 @@
 
                 if (catalogSubjects.length > 0) {
                     let addedCount = 0;
-
-                    // Projdeme nalezené předměty a přidáme je do paměti (s deduplikací)
                     catalogSubjects.forEach(newSub => {
                         const existingIdx = this.planSubjects.findIndex(p => p.katedra === newSub.katedra && p.zkratka === newSub.zkratka);
-                        
                         if (existingIdx === -1) {
-                            this.planSubjects.push(newSub); // Předmět tam ještě není
+                            this.planSubjects.push(newSub);
                             addedCount++;
                         } else {
-                            this.planSubjects[existingIdx] = newSub; // Aktualizace dat, pokud se něco změnilo
+                            this.planSubjects[existingIdx] = newSub;
                         }
                     });
 
