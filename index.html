@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STAG Plánovač a Rozvrh</title>
+    <style>
+        :root {
+            --bg-page: #1a1d21;
+            --bg-panel: #22262b;
+            --border-color: #3b424a;
+            --text-main: #e1e4e8;
+            --text-muted: #8b949e;
+
+            --header-bg: #2d333b;
+            --grid-line: #444c56;
+            --slot-bg: #22272e;
+
+            --accent-blue: #2f81f7;
+            --accent-blue-hover: #1f6feb;
+            --purple-btn: #8250df;
+            --purple-btn-hover: #9a67ea;
+
+            /* Kompaktní Dark Mode barvy pro katalog */
+            --plan-status-a: rgba(239, 68, 68, 0.15); /* Povinné (Lehce červená) */
+            --plan-status-b: rgba(59, 130, 246, 0.15); /* Povinně volitelné (Lehce modrá) */
+            --plan-status-c: rgba(34, 197, 94, 0.15); /* Volitelné (Lehce zelená) */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-page);
+            color: var(--text-main);
+            padding: 16px;
+        }
+
+        .toolbar {
+            background: var(--bg-panel);
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .toolbar-group {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .toolbar-group label {
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        input[type="text"], input[type="password"], select {
+            background: #0d1117;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            outline: none;
+        }
+
+        input[type="text"]:focus, input[type="password"]:focus, select:focus {
+            border-color: var(--accent-blue);
+        }
+
+        .input-xs { width: 60px; }
+        .input-sm { width: 100px; }
+        .input-md { width: 140px; }
+        .input-wide { width: 250px; }
+
+        .btn {
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.15s;
+        }
+        .btn-primary { background-color: var(--accent-blue); color: white; }
+        .btn-primary:hover { background-color: var(--accent-blue-hover); }
+        .btn-secondary { background-color: #373e47; color: white; border: 1px solid var(--border-color); }
+        .btn-secondary:hover { background-color: #444c56; }
+        .btn-sm { padding: 4px 8px; font-size: 11px; }
+
+        .plan-section {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+        }
+
+        .plan-section h2 {
+            font-size: 15px;
+            margin-bottom: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .plan-grid {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(130px, 1fr));
+            gap: 2px;
+            min-width: 780px;
+        }
+
+        .plan-header-year {
+            grid-column: span 2;
+            text-align: center;
+            background: #1e2329;
+            color: #d1d5db;
+            font-weight: bold;
+            padding: 4px;
+            border: 1px solid var(--border-color);
+            font-size: 12px;
+        }
+
+        .plan-header-term {
+            text-align: center;
+            background: #161a1f;
+            color: #58a6ff;
+            font-weight: bold;
+            padding: 4px;
+            border: 1px solid var(--border-color);
+            font-size: 11px;
+        }
+        .plan-header-term.ls { color: #d2a8ff; }
+
+        .plan-col {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            background: #121519;
+            padding: 2px;
+            border: 1px solid var(--border-color);
+            min-height: 40px;
+        }
+
+        .plan-subject {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 3px 6px;
+            font-size: 11px;
+            color: var(--text-main);
+            border: 1px solid #444b53;
+            cursor: pointer;
+            transition: filter 0.1s;
+        }
+
+        .plan-subject:hover { filter: brightness(1.3); }
+
+        .plan-subject.active {
+            background-color: rgba(255, 255, 255, 0.1);
+            font-weight: bold;
+        }
+
+        .status-A { background-color: var(--plan-status-a); border-left: 3px solid #ef4444; }
+        .status-B { background-color: var(--plan-status-b); border-left: 3px solid #3b82f6; }
+        .status-C { background-color: var(--plan-status-c); border-left: 3px solid #22c55e; }
+
+        .subject-credits { color: #8b949e; font-weight: bold; }
+
+        .timetable-wrapper {
+            overflow-x: auto;
+            border: 1px solid var(--border-color);
+            background: var(--bg-panel);
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: block; 
+            width: 100%;
+        }
+
+        .timetable-grid {
+            display: grid;
+            grid-template-columns: 46px repeat(16, minmax(38px, max-content));
+            gap: 1px;
+            background-color: var(--grid-line);
+            width: max-content; 
+        }
+
+        .cell { background-color: var(--slot-bg); min-height: 48px; position: relative; }
+
+        .cell-corner {
+            background-color: var(--header-bg);
+            color: var(--text-muted);
+            font-weight: bold;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            grid-column: 1;
+            grid-row: 1;
+        }
+
+        .cell-header-hour {
+            background-color: var(--header-bg);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 3px 4px;
+            text-align: center;
+            min-width: 40px;
+        }
+
+        .cell-header-hour .time-top, .cell-header-hour .time-bottom {
+            font-size: 9px;
+            color: var(--text-muted);
+        }
+        .cell-header-hour .time-top { text-align: left; }
+        .cell-header-hour .time-bottom { text-align: right; }
+        .cell-header-hour .hour-num { font-size: 13px; font-weight: bold; }
+
+        .cell-day {
+            background-color: var(--header-bg);
+            color: var(--text-main);
+            font-weight: bold;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            grid-column: 1;
+        }
+
+        .event-card {
+            border-radius: 3px;
+            padding: 4px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow: hidden;
+            z-index: 2;
+            margin: 1px;
+            position: relative;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+            border: 1px solid rgba(0,0,0,0.1);
+            color: #111;
+        }
+
+        .event-card.unselected {
+            opacity: 0.5;
+            border: 1px dashed #7a828e;
+            filter: grayscale(40%);
+        }
+
+        .card-badge {
+            font-size: 10px;
+            font-weight: bold;
+            padding: 1px 4px;
+            border-radius: 2px;
+            color: #111;
+            display: inline-block;
+            align-self: flex-start;
+            white-space: nowrap;
+        }
+
+        .card-badge.prednaska { background-color: #e5e7eb; }
+        .card-badge.cviceni { background-color: #bae6fd; }
+        .card-badge.seminar { background-color: #bbf7d0; }
+
+        .card-body {
+            font-size: 10px;
+            line-height: 1.2;
+            color: #111;
+            margin-top: 3px;
+            white-space: nowrap;
+        }
+
+        .purple-check-btn {
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            width: 18px;
+            height: 18px;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            transition: transform 0.1s;
+        }
+
+        .event-card.unselected .purple-check-btn {
+            background-color: rgba(255,255,255,0.2);
+            color: transparent;
+            border: 1px solid rgba(255,255,255,0.4);
+        }
+
+        .event-card:not(.unselected) .purple-check-btn {
+            background-color: var(--purple-btn);
+            color: white;
+            border: 1px solid rgba(0,0,0,0.3);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .purple-check-btn:hover { transform: scale(1.15); }
+
+        .api-url-bar {
+            padding-top: 10px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+        }
+        .api-url-link {
+            color: var(--accent-blue);
+            text-decoration: none;
+            background: #0d1117;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            font-family: monospace;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .cascade-output {
+            width: 100%;
+            height: 100px;
+            background: #0d1117;
+            color: #d1d5db;
+            border: 1px solid var(--border-color);
+            padding: 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 11px;
+            margin-top: 8px;
+        }
+        .modal-dialog {
+            background: var(--bg-panel);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            border-radius: 6px;
+            max-width: 500px;
+            width: 90%;
+            margin: auto;
+        }
+        .modal-dialog textarea {
+            width: 100%;
+            height: 180px;
+            background: #0d1117;
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 8px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+
+    <header class="toolbar">
+        <div style="color: var(--text-muted); font-size: 12px; font-weight: bold; text-transform: uppercase;">1. STAG Datová Kaskáda (Vyhledání plánu)</div>
+        
+        <div class="toolbar-group">
+            <label>Základní STAG URL:</label>
+            <input type="text" id="apiEndpoint" value="https://stagws.uhk.cz/ws/services/rest2" class="input-wide">
+            
+            <label style="margin-left: 10px;">
+                <input type="checkbox" id="useCorsProxy" checked> Obejít CORS (přes proxy.txt)
+            </label>
+        </div>
+
+        <div class="toolbar-group">
+            <label>Os. číslo:</label><input type="text" id="studentNumber" placeholder="např. F23..." class="input-sm">
+            <label>Login:</label><input type="text" id="proxyUsername" placeholder="Stag Login" class="input-sm">
+            <label>Heslo:</label><input type="password" id="proxyPassword" placeholder="Stag Heslo" autocomplete="new-password" class="input-sm">
+        </div>
+
+        <div class="toolbar-group" style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px;">
+            <button id="btnCasc1" class="btn btn-secondary btn-sm">1. Plány studenta</button> ➔
+            <label>stplIdno:</label><input type="text" id="inStplIdno" class="input-xs">
+            
+            <button id="btnCasc2" class="btn btn-secondary btn-sm">2. Segmenty plánu</button> ➔
+            <label>sespIdno:</label><input type="text" id="inSespIdno" class="input-xs">
+            
+            <button id="btnCasc3" class="btn btn-secondary btn-sm">3. Bloky segmentu</button> ➔
+            <label>blokIdno:</label><input type="text" id="inBlokIdno" class="input-xs">
+            
+            <button id="btnCasc4" class="btn btn-primary btn-sm">4. ZOBRAZIT PŘEDMĚTY</button>
+
+            <button id="btnClearData" class="btn btn-secondary btn-sm" style="margin-left: auto; background-color: #ef4444; color: white; border: none;">Vymazat paměť</button>
+        </div>
+
+        <textarea id="cascadeOutput" class="cascade-output" placeholder="Zde se zobrazí syrová JSON odpověď ze STAGu..."></textarea>
+        
+        <div class="api-url-bar">
+            <span style="color: var(--text-muted); font-weight: 600;">Čistý odkaz:</span>
+            <a id="apiUrlLink" href="#" target="_blank" class="api-url-link">-</a>
+            <button id="btnPasteJson" class="btn btn-secondary btn-sm">Vložit JSON ručně</button>
+        </div>
+    </header>
+
+    <section class="plan-section">
+        <h2>
+            <span>2. Katalog předmětů</span>
+            <div class="toolbar-group" style="font-size: 11px; font-weight: normal;">
+                <label>Rok:</label><input type="text" id="scheduleYear" value="2025" style="width: 45px; padding: 2px;">
+                <label>Semestr:</label>
+                <select id="scheduleSemester" style="padding: 2px;">
+                    <option value="ZS" selected>ZS</option><option value="LS">LS</option>
+                </select>
+                <span style="margin: 0 8px; color: var(--border-color);">|</span>
+                <input type="text" id="customKatedra" placeholder="Katedra" style="width: 60px; padding: 2px;">
+                <input type="text" id="customZkratka" placeholder="Zkratka" style="width: 60px; padding: 2px;">
+                <button id="btnAddCustomSubject" class="btn btn-secondary btn-sm">Přidat ručně</button>
+            </div>
+        </h2>
+        <div id="planGrid" class="plan-grid">
+            <div style="padding: 20px; color: var(--text-muted); grid-column: span 6; text-align: center;">
+                Katalog je prázdný. Doklikejte kaskádu (krok 4), přidejte předmět ručně, nebo vložte JSON.
+            </div>
+        </div>
+    </section>
+
+    <main class="timetable-wrapper">
+        <div class="timetable-grid" id="timetableGrid"></div>
+    </main>
+
+    <dialog id="pasteDialog" class="modal-dialog">
+        <h3>Vložit STAG JSON</h3>
+        <textarea id="pasteTextarea" placeholder='Vložte jakoukoliv odpověď ze STAGu (Rozvrh nebo Předměty)'></textarea>
+        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+            <button id="btnDialogClose" class="btn btn-secondary">Zavřít</button>
+            <button id="btnDialogConfirm" class="btn btn-primary">Zpracovat</button>
+        </div>
+    </dialog>
+
+    <script>
+        const CourseType = { PREDNASKA: 'Přednáška', CVICENI: 'Cvičení', SEMINAR: 'Seminář' };
+
+        class ScheduleEvent {
+            constructor(params) {
+                this.id = params.id || Math.random().toString(36).substring(2, 9);
+                this.katedra = params.katedra;
+                this.predmet = params.predmet;
+                this.typAkce = params.typAkce;
+                this.den = params.den || 'Po';
+                this.hodinaOd = Number(params.hodinaOd);
+                this.hodinaDo = Number(params.hodinaDo);
+                this.mistnost = params.mistnost || '';
+                this.ucitel = params.ucitel || '';
+                this.isSelected = params.isSelected !== undefined ? params.isSelected : (params.typAkce === CourseType.PREDNASKA);
+                this.isHidden = params.isHidden || false;
+                this.laneIndex = params.laneIndex || 0;
+            }
+            get fullSubjectCode() { return `${this.katedra}/${this.predmet}`; }
+            get duration() { return (this.hodinaDo - this.hodinaOd) + 1; }
+            overlaps(other) {
+                if (this.den !== other.den) return false;
+                return Math.max(this.hodinaOd, other.hodinaOd) <= Math.min(this.hodinaDo, other.hodinaDo);
+            }
+        }
+
+        class ScheduleApp {
+            constructor() {
+                this.days = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
+                this.periodTimes = [
+                    { top: '07:25', bottom: '08:10' }, { top: '08:15', bottom: '09:00' },
+                    { top: '09:05', bottom: '09:50' }, { top: '09:55', bottom: '10:40' },
+                    { top: '10:45', bottom: '11:30' }, { top: '11:35', bottom: '12:20' },
+                    { top: '12:25', bottom: '13:10' }, { top: '13:15', bottom: '14:00' },
+                    { top: '14:05', bottom: '14:50' }, { top: '14:55', bottom: '15:40' },
+                    { top: '15:45', bottom: '16:30' }, { top: '16:35', bottom: '17:20' },
+                    { top: '17:25', bottom: '18:10' }, { top: '18:15', bottom: '19:00' },
+                    { top: '19:05', bottom: '19:50' }, { top: '19:55', bottom: '20:40' }
+                ];
+                
+                this.assignedColors = new Map();
+                this.planSubjects = [];
+                this.activeSubjectCodes = new Set();
+                this.scheduleEvents = [];
+                this.cachedProxyUrl = null;
+
+                this.loadSettings();
+                this.loadAppState();
+                this.bindEvents();
+                if (this.scheduleEvents.length === 0 && this.planSubjects.length === 0) {
+                    this.renderTimetable();
+                }
+            }
+
+            saveAppState() {
+                const state = {
+                    planSubjects: this.planSubjects,
+                    activeSubjectCodes: Array.from(this.activeSubjectCodes),
+                    scheduleEvents: this.scheduleEvents.map(e => ({ ...e }))
+                };
+                localStorage.setItem('stag_appState', JSON.stringify(state));
+            }
+
+            loadAppState() {
+                try {
+                    const saved = localStorage.getItem('stag_appState');
+                    if (saved) {
+                        const state = JSON.parse(saved);
+                        this.planSubjects = state.planSubjects || [];
+                        this.activeSubjectCodes = new Set(state.activeSubjectCodes || []);
+                        
+                        const eventsRaw = state.scheduleEvents || [];
+                        this.scheduleEvents = eventsRaw.map(ev => new ScheduleEvent(ev));
+                        
+                        this.renderCatalog();
+                        this.renderTimetable();
+                    }
+                } catch (e) {
+                    console.error("Nelze načíst uložený stav", e);
+                }
+            }
+
+            loadSettings() {
+                const fields = ['apiEndpoint', 'studentNumber', 'proxyUsername', 'scheduleYear', 'scheduleSemester', 'inStplIdno', 'inSespIdno', 'inBlokIdno'];
+                localStorage.removeItem('stag_proxyPassword'); // Smazat případné uložené heslo z minula
+                fields.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        const saved = localStorage.getItem('stag_' + id);
+                        if (saved) el.value = saved;
+                        const saveFn = () => localStorage.setItem('stag_' + id, el.value);
+                        el.addEventListener('input', saveFn);
+                        el.addEventListener('change', saveFn);
+                    }
+                });
+
+                const cb = document.getElementById('useCorsProxy');
+                if (cb) {
+                    const savedCb = localStorage.getItem('stag_useCorsProxy');
+                    if (savedCb !== null) cb.checked = savedCb === 'true';
+                    cb.addEventListener('change', () => localStorage.setItem('stag_useCorsProxy', cb.checked));
+                }
+            }
+
+            bindEvents() {
+                // Kaskáda tlačítka
+                document.getElementById('btnCasc1')?.addEventListener('click', () => {
+                    this.fetchCascadeStep(1, '/student/getStudentInfo?osCislo={VAL}', 'studentNumber', 'inStplIdno');
+                });
+                document.getElementById('btnCasc2')?.addEventListener('click', () => {
+                    this.fetchCascadeStep(2, '/programy/getStrukturaPlanu?stplIdno={VAL}', 'inStplIdno', 'inSespIdno');
+                });
+                document.getElementById('btnCasc3')?.addEventListener('click', () => {
+                    this.fetchCascadeStep(3, '/programy/getBlokySegmentu?sespIdno={VAL}', 'inSespIdno', 'inBlokIdno');
+                });
+                document.getElementById('btnCasc4')?.addEventListener('click', () => {
+                    this.fetchCascadeStep(4, '/predmety/getPredmetyByBlok?blokIdno={VAL}', 'inBlokIdno', null);
+                });
+
+                // Promazání paměti
+                document.getElementById('btnClearData')?.addEventListener('click', () => {
+                    // Místo alert/confirm rovnou promažeme paměť dle předchozí domluvy
+                    localStorage.removeItem('stag_appState');
+                    this.planSubjects = [];
+                    this.activeSubjectCodes.clear();
+                    this.scheduleEvents = [];
+                    this.renderCatalog();
+                    this.renderTimetable();
+                });
+
+                // Přidání vlastního předmětu z UI
+                document.getElementById('btnAddCustomSubject')?.addEventListener('click', () => {
+                    const kat = document.getElementById('customKatedra').value.trim().toUpperCase();
+                    const zkr = document.getElementById('customZkratka').value.trim().toUpperCase();
+                    const rok = document.getElementById('scheduleYear').value.trim() || 'X';
+                    const sem = document.getElementById('scheduleSemester').value;
+                    
+                    if (kat && zkr) {
+                        const exists = this.planSubjects.find(p => p.katedra === kat && p.zkratka === zkr);
+                        if (!exists) {
+                            this.planSubjects.push({
+                                katedra: kat, zkratka: zkr, rocnik: rok, semestr: sem, status: 'C', kredity: 0
+                            });
+                            this.renderCatalog();
+                            this.saveAppState();
+                            
+                            // Vyčištění políček po přidání
+                            document.getElementById('customKatedra').value = '';
+                            document.getElementById('customZkratka').value = '';
+                        }
+                    }
+                });
+
+                // Dialog pro vložení čistého JSONu
+                const pasteDialog = document.getElementById('pasteDialog');
+                document.getElementById('btnPasteJson')?.addEventListener('click', () => pasteDialog?.showModal());
+                document.getElementById('btnDialogClose')?.addEventListener('click', () => pasteDialog?.close());
+                document.getElementById('btnDialogConfirm')?.addEventListener('click', () => {
+                    try {
+                        const data = JSON.parse(document.getElementById('pasteTextarea').value);
+                        this.processImportedData(data);
+                        pasteDialog?.close();
+                    } catch (err) {
+                        // Nemůžeme použít alert dle tvých pravidel, tak chybu vložíme do textarey
+                        document.getElementById('pasteTextarea').value = 'Chyba při čtení JSONu. Ujistěte se, že jde o platný formát.\n\n' + err.message;
+                    }
+                });
+            }
+
+            getBaseUrl() { return document.getElementById('apiEndpoint').value.trim().replace(/\/+$/, ''); }
+
+            setLink(url) {
+                const a = document.getElementById('apiUrlLink');
+                a.href = url; a.textContent = url;
+            }
+
+            async fetchStagApi(url) {
+                const useProxy = document.getElementById('useCorsProxy')?.checked;
+                if (!useProxy) {
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error(`HTTP chyba ${res.status}`);
+                    return await res.json();
+                }
+
+                if (!this.cachedProxyUrl) {
+                    try {
+                        const proxyRes = await fetch('proxy.txt');
+                        if (proxyRes.ok) {
+                            this.cachedProxyUrl = (await proxyRes.text()).trim();
+                        } else {
+                            throw new Error('Nelze načíst soubor proxy.txt');
+                        }
+                    } catch (e) {
+                        alert('Chyba proxy! Ujistěte se, že soubor "proxy.txt" existuje a spouštíte HTML přes lokální server (Live Server).');
+                        throw e;
+                    }
+                }
+
+                const username = document.getElementById('proxyUsername').value.trim();
+                const pass = document.getElementById('proxyPassword').value.trim();
+                const headers = {};
+                
+                if (username && pass) {
+                    const utf8Credentials = unescape(encodeURIComponent(`${username}:${pass}`));
+                    headers['Authorization'] = 'Basic ' + btoa(utf8Credentials);
+                }
+
+                const finalUrl = this.cachedProxyUrl + encodeURIComponent(url);
+                document.getElementById('cascadeOutput').value = `Stahuji přes proxy...\n${finalUrl}`;
+                
+                const res = await fetch(finalUrl, { headers });
+                if (!res.ok) throw new Error(`Proxy selhala se statusem: ${res.status}`);
+                return await res.json();
+            }
+
+            async fetchCascadeStep(stepNum, endpointTemplate, queryIdKey, nextInputId) {
+                // KROK 4: Multi-fetch (Stáhne všechny bloky oddělené čárkou)
+                if (stepNum === 4) {
+                    const rawVal = document.getElementById(queryIdKey).value;
+                    const queryVals = rawVal.split(',').map(s => s.trim()).filter(s => s);
+                    
+                    if (queryVals.length === 0) return alert('Chybí ID (blokIdno)');
+                    
+                    document.getElementById('cascadeOutput').value = `Stahuji ${queryVals.length} bloků, čekejte prosím...`;
+                    
+                    let allData = [];
+                    for (const val of queryVals) {
+                        const fullUrl = `${this.getBaseUrl()}${endpointTemplate.replace('{VAL}', val)}&outputFormat=JSON`;
+                        this.setLink(fullUrl); 
+                        try {
+                            const data = await this.fetchStagApi(fullUrl);
+                            
+                            // ZÁCHRANA STATUSU Z KROKU 3
+                            const zachranenyStatus = (this.blockStatusCache && this.blockStatusCache[val]) ? this.blockStatusCache[val] : null;
+                            
+                            if (zachranenyStatus) {
+                                // STAG v Kroku 4 "ztratí" název bloku. 
+                                // Proto data uměle obalíme hlavičkou blokInfo, kterou jsme si zapamatovali v Kroku 3.
+                                // processImportedData() pak na toto blokInfo narazí a uplatní správnou gramatiku (A/B/C).
+                                const umelyNazev = zachranenyStatus === 'A' ? 'povinné' : (zachranenyStatus === 'B' ? 'povinně volitelné' : 'volitelné');
+                                allData.push({
+                                    blokInfo: { nazev: umelyNazev },
+                                    obsahBloku: data
+                                });
+                            } else {
+                                allData.push(data);
+                            }
+                        } catch (e) {
+                            console.error(`Chyba při stahování bloku ${val}:`, e);
+                        }
+                    }
+                    
+                    document.getElementById('cascadeOutput').value = `Úspěšně staženo ${allData.length} bloků.\n` + JSON.stringify(allData, null, 2);
+                    this.processImportedData(allData);
+                    return;
+                }
+
+                // KROKY 1-3: Klasický fetch
+                const queryVal = document.getElementById(queryIdKey).value.trim();
+                const fullUrl = `${this.getBaseUrl()}${endpointTemplate.replace('{VAL}', queryVal)}&outputFormat=JSON`;
+                this.setLink(fullUrl);
+
+                try {
+                    const data = await this.fetchStagApi(fullUrl);
+                    document.getElementById('cascadeOutput').value = JSON.stringify(data, null, 2);
+
+                    // TADY JE TO KOUZLO: Pokud stahujeme Krok 3 (Bloky), STAG nám pošle ID i Název bloku.
+                    // Zapamatujeme si to do paměti (cache), abychom to v Kroku 4 mohli použít!
+                    if (stepNum === 3) {
+                        this.blockStatusCache = {};
+                        const zapamatujBloky = (obj) => {
+                            if (!obj) return;
+                            if (obj.blokIdno && obj.nazev) {
+                                let s = 'C'; // Výchozí
+                                const n = obj.nazev.toLowerCase();
+                                if (n.includes('povinně volitel') || n.includes('skupina b')) s = 'B';
+                                else if (n.includes('povinn') || n.includes('skupina a')) s = 'A';
+                                else if (n.includes('volitel') || n.includes('skupina c')) s = 'C';
+                                
+                                this.blockStatusCache[String(obj.blokIdno)] = s;
+                            }
+                            if (Array.isArray(obj)) obj.forEach(zapamatujBloky);
+                            else if (typeof obj === 'object') Object.values(obj).forEach(zapamatujBloky);
+                        };
+                        zapamatujBloky(data);
+                    }
+
+                    if (nextInputId) {
+                        const targetKey = nextInputId.replace('in', '');
+                        const lowerTargetKey = targetKey.charAt(0).toLowerCase() + targetKey.slice(1);
+                        
+                        const findAllIds = (obj, key, res = new Set()) => {
+                            if (!obj || typeof obj !== 'object') return res;
+                            if (obj[key] !== undefined) res.add(obj[key]);
+                            for (const k in obj) findAllIds(obj[k], key, res);
+                            return res;
+                        };
+                        
+                        const foundVals = Array.from(findAllIds(data, lowerTargetKey));
+                        
+                        if (foundVals.length > 0) {
+                            const inputEl = document.getElementById(nextInputId);
+                            inputEl.value = foundVals.join(', ');
+                            inputEl.dispatchEvent(new Event('input'));
+                        }
+                    }
+                } catch (e) {
+                    document.getElementById('cascadeOutput').value = 'CHYBA: ' + e.message;
+                }
+            }
+
+            processImportedData(data) {
+                let scheduleActions = [];
+                let catalogSubjects = [];
+
+                // Rekurzivní funkce, která prohledá celý JSON strom do hloubky
+                const traverseAndExtract = (node, currentStatus = 'C') => {
+                    if (!node) return;
+
+                    let status = currentStatus;
+                    
+                    // Pokud najdeme hlavičku bloku (blokInfo), aktualizujeme dědičný status pro předměty uvnitř
+                    if (node.blokInfo && node.blokInfo.nazev) {
+                        const nazev = node.blokInfo.nazev.toLowerCase();
+                        
+                        // Rozpoznání české gramatiky - Záleží na přesném pořadí! 
+                        // Slovo "povinně volitelné" obsahuje slovo "povinné", proto musí být testováno jako první.
+                        if (nazev.includes('povinně volitel') || nazev.includes('skupina b')) {
+                            status = 'B';
+                        } else if (nazev.includes('povinn') || nazev.includes('skupina a')) {
+                            status = 'A';
+                        } else if (nazev.includes('volitel') || nazev.includes('skupina c')) {
+                            status = 'C';
+                        }
+                    }
+
+                    if (Array.isArray(node)) {
+                        node.forEach(item => traverseAndExtract(item, status));
+                    } else if (typeof node === 'object') {
+                        // 1. Identifikace Rozvrhové akce
+                        if ((node.typAkce || node.typAkceZkr || node.hodinaSkutOd || node.hodinaOd !== undefined) && node.katedra && node.predmet) {
+                            scheduleActions.push(node);
+                            return; // Uvnitř rozvrhové akce už další předměty hledat nemusíme
+                        }
+                        
+                        // 2. Identifikace Předmětu pro Katalog
+                        if (node.katedra && node.zkratka && node.nazev && !node.typAkce) {
+                            
+                            // 2.5 Hledání statutu přímo v předmětu (Když jsme v Kroku 4 a chybí nám hlavička bloku)
+                            let finalStatus = status; // vezme 'C' z hlavičky nebo fallbacku
+                            const directStatus = node.statutBloku || node.statutPredmetu || node.statut;
+                            if (directStatus && typeof directStatus === 'string') {
+                                const s = directStatus.toUpperCase().trim();
+                                if (s === 'A' || s === 'B' || s === 'C') {
+                                    finalStatus = s;
+                                }
+                            }
+
+                            catalogSubjects.push({
+                                katedra: node.katedra,
+                                zkratka: node.zkratka,
+                                rocnik: node.doporucenyRocnik || 'X',
+                                semestr: (node.doporucenySemestr || 'ZS').includes('Z') ? 'ZS' : 'LS',
+                                status: finalStatus, 
+                                kredity: node.kredity || 0
+                            });
+                        }
+
+                        // Jdeme hlouběji do dalších objektů/polí uvnitř
+                        for (const key in node) {
+                            if (typeof node[key] === 'object') {
+                                traverseAndExtract(node[key], status);
+                            }
+                        }
+                    }
+                };
+
+                traverseAndExtract(data);
+
+                // Zpracování podle toho, co jsme našli
+                if (scheduleActions.length > 0) {
+                    this.appendScheduleEvents(scheduleActions);
+                    return;
+                }
+
+                if (catalogSubjects.length > 0) {
+                    let addedCount = 0;
+
+                    // Projdeme nalezené předměty a přidáme je do paměti (s deduplikací)
+                    catalogSubjects.forEach(newSub => {
+                        const existingIdx = this.planSubjects.findIndex(p => p.katedra === newSub.katedra && p.zkratka === newSub.zkratka);
+                        
+                        if (existingIdx === -1) {
+                            this.planSubjects.push(newSub); // Předmět tam ještě není
+                            addedCount++;
+                        } else {
+                            this.planSubjects[existingIdx] = newSub; // Aktualizace dat, pokud se něco změnilo
+                        }
+                    });
+
+                    this.renderCatalog();
+                    this.saveAppState();
+                    
+                    document.getElementById('cascadeOutput').value = `Do katalogu bylo nalezeno a úspěšně načteno ${addedCount} nových předmětů (celkem zpracováno ${catalogSubjects.length}).`;
+                    return;
+                }
+
+                alert('V datech nebyly nalezeny žádné rozvrhové akce ani předměty. Zkontrolujte API odkaz.');
+            }
+
+            renderCatalog() {
+                const grid = document.getElementById('planGrid');
+                grid.innerHTML = '';
+                
+                const years = [...new Set(this.planSubjects.map(p => p.rocnik))].sort();
+
+                years.forEach(year => {
+                    const yearHeader = document.createElement('div');
+                    yearHeader.className = 'plan-header-year';
+                    yearHeader.textContent = `Ročník ${year}`;
+                    grid.appendChild(yearHeader);
+                });
+                
+                years.forEach(() => {
+                    grid.innerHTML += `<div class="plan-header-term zs">ZS</div><div class="plan-header-term ls">LS</div>`;
+                });
+
+                years.forEach(year => {
+                    ['ZS', 'LS'].forEach(sem => {
+                        const col = document.createElement('div');
+                        col.className = 'plan-col';
+                        
+                        const subjects = this.planSubjects.filter(p => p.rocnik === year && p.semestr === sem);
+                        subjects.forEach(sub => {
+                            const div = document.createElement('div');
+                            const code = `${sub.katedra}/${sub.zkratka}`;
+                            const isAct = this.activeSubjectCodes.has(code);
+                            
+                            div.className = `plan-subject status-${sub.status} ${isAct ? 'active' : ''}`;
+                            div.innerHTML = `<span>${code}</span><span class="subject-credits">${sub.kredity}</span>`;
+                            
+                            div.addEventListener('mouseenter', () => {
+                                const y = document.getElementById('scheduleYear').value;
+                                const s = document.getElementById('scheduleSemester').value;
+                                this.setLink(`${this.getBaseUrl()}/rozvrhy/getRozvrhByPredmet?katedra=${sub.katedra}&zkratka=${sub.zkratka}&rok=${y}&semestr=${s}&outputFormat=JSON`);
+                            });
+
+                            div.addEventListener('click', () => this.toggleSubjectInTimetable(sub.katedra, sub.zkratka, div));
+                            col.appendChild(div);
+                        });
+                        grid.appendChild(col);
+                    });
+                });
+            }
+
+            async toggleSubjectInTimetable(katedra, zkratka, elNode) {
+                const code = `${katedra}/${zkratka}`;
+                
+                if (this.activeSubjectCodes.has(code)) {
+                    this.activeSubjectCodes.delete(code);
+                    this.scheduleEvents = this.scheduleEvents.filter(e => e.fullSubjectCode !== code);
+                    elNode.classList.remove('active');
+                    this.renderTimetable();
+                    this.saveAppState();
+                    return;
+                }
+
+                const y = document.getElementById('scheduleYear').value;
+                const s = document.getElementById('scheduleSemester').value;
+                const url = `${this.getBaseUrl()}/rozvrhy/getRozvrhByPredmet?katedra=${katedra}&zkratka=${zkratka}&rok=${y}&semestr=${s}&outputFormat=JSON`;
+                
+                try {
+                    const data = await this.fetchStagApi(url);
+                    const actions = data.rozvrhovaAkce || data;
+                    if (!actions || (Array.isArray(actions) && actions.length === 0)) {
+                        document.getElementById('cascadeOutput').value = `Předmět ${code} nemá v semestru ${s} ${y} vypsaný žádný rozvrh.`;
+                        alert(`Předmět ${code} nemá v semestru ${s} ${y} vypsaný žádný rozvrh.`);
+                        return;
+                    }
+                    
+                    document.getElementById('cascadeOutput').value = `Úspěšně staženo ${actions.length} akcí pro předmět ${code}.`;
+                    this.activeSubjectCodes.add(code);
+                    elNode.classList.add('active');
+                    this.appendScheduleEvents(actions);
+                    this.saveAppState();
+
+                } catch (e) {
+                    alert('Chyba při stahování rozvrhu: ' + e.message);
+                }
+            }
+
+            appendScheduleEvents(actionsArray) {
+                if (!Array.isArray(actionsArray)) actionsArray = [actionsArray];
+
+                const newEvents = actionsArray.map(item => {
+                    let typ = CourseType.PREDNASKA;
+                    const typZkr = (item.typAkceZkr || item.typAkce || '').toUpperCase();
+                    if (typZkr.includes('CV') || typZkr === 'CVIČENÍ' || typZkr === 'CV') typ = CourseType.CVICENI;
+                    else if (typZkr.includes('SE') || typZkr === 'SEMINÁŘ') typ = CourseType.SEMINAR;
+
+                    const teacher = item.vsichniUcitelePrijmeni || (item.ucitel ? (item.ucitel.prijmeni || item.ucitel.jmeno || '') : (item.ucitelPrijmeni || ''));
+                    
+                    let hOd = item.hodinaOd !== undefined && item.hodinaOd !== null && item.hodinaOd !== '' ? Number(item.hodinaOd) : null;
+                    let hDo = item.hodinaDo !== undefined && item.hodinaDo !== null && item.hodinaDo !== '' ? Number(item.hodinaDo) : null;
+                    
+                    const parseTime = (timeVal, isEnd) => {
+                        if (timeVal === undefined || timeVal === null || timeVal === '') return null;
+                        if (typeof timeVal === 'object' && timeVal.value !== undefined) timeVal = timeVal.value;
+                        const timeStr = String(timeVal);
+                        if (timeStr === 'null' || timeStr.trim() === '') return null;
+                        
+                        let hr = 0, min = 0;
+                        if (timeStr.includes(':')) {
+                            const parts = timeStr.split(':');
+                            hr = Number(parts[0]);
+                            min = Number(parts[1]);
+                        } else {
+                            hr = Number(timeStr);
+                        }
+                        
+                        const totalMins = (isNaN(hr) ? 0 : hr) * 60 + (isNaN(min) ? 0 : min);
+                        let closestIdx = 0, minDiff = Infinity;
+                        for (let i = 0; i < this.periodTimes.length; i++) {
+                            const refTime = isEnd ? this.periodTimes[i].bottom : this.periodTimes[i].top;
+                            const [pHR, pMin] = refTime.split(':').map(Number);
+                            const diff = Math.abs(totalMins - (pHR * 60 + pMin));
+                            if (diff < minDiff) { minDiff = diff; closestIdx = i; }
+                        }
+                        return closestIdx;
+                    };
+
+                    if (hOd === null && item.hodinaSkutOd) {
+                        hOd = parseTime(item.hodinaSkutOd, false);
+                        hDo = item.hodinaSkutDo ? parseTime(item.hodinaSkutDo, true) : hOd;
+                    }
+
+                    if (hOd === null || !item.denZkr || item.nekonaSe === 'A' || item.nekonaSe === 'Ano') {
+                        return null;
+                    }
+
+                    if (hDo === null) hDo = hOd;
+
+                    return new ScheduleEvent({
+                        id: String(item.roId || item.id || Math.random()),
+                        katedra: item.katedra || '',
+                        predmet: item.predmet || '',
+                        typAkce: typ,
+                        den: item.denZkr || 'Po',
+                        hodinaOd: hOd,
+                        hodinaDo: hDo,
+                        mistnost: item.mistnost || item.budovaMistnost || '',
+                        ucitel: teacher
+                    });
+                });
+
+                const validEvents = newEvents.filter(e => e !== null);
+                this.scheduleEvents.push(...validEvents);
+                this.renderTimetable();
+                this.saveAppState();
+            }
+
+            handleEventClick(eventId) {
+                const clicked = this.scheduleEvents.find(e => e.id === eventId);
+                if (!clicked) return;
+
+                if (clicked.typAkce === CourseType.PREDNASKA) {
+                    clicked.isSelected = !clicked.isSelected;
+                } else {
+                    clicked.isSelected = !clicked.isSelected;
+                    const code = clicked.fullSubjectCode;
+                    const typ = clicked.typAkce;
+                    const siblings = this.scheduleEvents.filter(e => e.fullSubjectCode === code && e.typAkce === typ && e.id !== clicked.id);
+                    siblings.forEach(s => s.isHidden = clicked.isSelected);
+                }
+                
+                this.renderTimetable();
+                this.saveAppState();
+            }
+
+            renderTimetable() {
+                const grid = document.getElementById('timetableGrid');
+                grid.innerHTML = '';
+                
+                const corner = document.createElement('div');
+                corner.className = 'cell cell-corner';
+                corner.textContent = document.getElementById('scheduleSemester').value;
+                grid.appendChild(corner);
+
+                for (let h = 0; h <= 15; h++) {
+                    const hc = document.createElement('div');
+                    hc.className = 'cell cell-header-hour';
+                    hc.style.gridColumn = `${h + 2}`;
+                    hc.style.gridRow = '1';
+                    hc.innerHTML = `<span class="time-top">${this.periodTimes[h].top}</span><span class="hour-num">${h}.</span><span class="time-bottom">${this.periodTimes[h].bottom}</span>`;
+                    grid.appendChild(hc);
+                }
+
+                let currentRow = 2;
+                
+                for (const day of this.days) {
+                    const dayEvents = this.scheduleEvents.filter(e => e.den === day && !e.isHidden);
+                    const sorted = [...dayEvents].sort((a, b) => a.hodinaOd - b.hodinaOd || b.duration - a.duration);
+                    const lanes = [];
+                    sorted.forEach(ev => {
+                        let placed = false;
+                        for (let i = 0; i < lanes.length; i++) {
+                            if (!lanes[i].some(ext => ext.overlaps(ev))) {
+                                lanes[i].push(ev); ev.laneIndex = i; placed = true; break;
+                            }
+                        }
+                        if (!placed) { ev.laneIndex = lanes.length; lanes.push([ev]); }
+                    });
+                    const lanesCount = Math.max(1, lanes.length);
+
+                    const dayHeader = document.createElement('div');
+                    dayHeader.className = 'cell cell-day';
+                    dayHeader.textContent = day;
+                    dayHeader.style.gridColumn = '1';
+                    dayHeader.style.gridRow = `${currentRow} / span ${lanesCount}`;
+                    grid.appendChild(dayHeader);
+
+                    for (let lane = 0; lane < lanesCount; lane++) {
+                        for (let h = 0; h <= 15; h++) {
+                            const slot = document.createElement('div');
+                            slot.className = 'cell';
+                            slot.style.gridColumn = `${h + 2}`;
+                            slot.style.gridRow = `${currentRow + lane}`;
+                            grid.appendChild(slot);
+                        }
+                    }
+
+                    sorted.forEach(ev => {
+                        const card = document.createElement('div');
+                        const isSel = ev.isSelected;
+                        
+                        card.className = `event-card ${isSel ? '' : 'unselected'}`;
+                        card.style.gridColumn = `${ev.hodinaOd + 2} / ${ev.hodinaDo + 3}`;
+                        card.style.gridRow = `${currentRow + ev.laneIndex}`;
+                        
+                        let badge = 'prednaska';
+                        let explicitBg = '#ffffff';
+                        
+                        if (ev.typAkce === CourseType.CVICENI) { badge = 'cviceni'; explicitBg = '#4ade80'; }
+                        if (ev.typAkce === CourseType.SEMINAR) { badge = 'seminar'; explicitBg = '#bbf7d0'; }
+                        
+                        card.style.backgroundColor = explicitBg;
+
+                        card.innerHTML = `
+                            <div class="card-badge ${badge}">${ev.fullSubjectCode}</div>
+                            <div class="card-body">
+                                <div>${ev.mistnost}</div><div>${ev.ucitel}</div>
+                            </div>
+                            <div class="purple-check-btn">✓</div>
+                        `;
+
+                        card.querySelector('.purple-check-btn').addEventListener('click', (e) => {
+                            e.stopPropagation(); this.handleEventClick(ev.id);
+                        });
+                        grid.appendChild(card);
+                    });
+
+                    currentRow += lanesCount;
+                }
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => new ScheduleApp());
+    </script>
+</body>
+</html>
