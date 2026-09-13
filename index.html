@@ -572,7 +572,7 @@
                 btn1?.addEventListener('mouseenter', () => updateLink(tpl1, 'studentNumber'));
 
                 // KROK 2: Segmenty plánu
-                const tpl2 = '/programy/getStrukturaPlanu?stplIdno={VAL}';
+                const tpl2 = '/programy/getSegmentyPlanu?stplIdno={VAL}';
                 const btn2 = document.getElementById('btnCasc2');
                 btn2?.addEventListener('click', () => this.fetchCascadeStep(2, tpl2, 'inStplIdno', 'inSespIdno'));
                 btn2?.addEventListener('mouseenter', () => updateLink(tpl2, 'inStplIdno'));
