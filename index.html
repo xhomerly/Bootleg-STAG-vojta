@@ -423,7 +423,7 @@
         <h2>
             <span>2. Katalog předmětů</span>
             <div class="toolbar-group" style="font-size: 11px; font-weight: normal;">
-                <label>Rok:</label><input type="text" id="scheduleYear" value="2025" style="width: 45px; padding: 2px;">
+                <label>Rok:</label><input type="text" id="scheduleYear" value="" style="width: 45px; padding: 2px;">
                 <label>Semestr:</label>
                 <select id="scheduleSemester" style="padding: 2px;">
                     <option value="ZS" selected>ZS</option><option value="LS">LS</option>
@@ -537,7 +537,10 @@
             }
 
             loadSettings() {
-                const fields = ['apiEndpoint', 'studentNumber', 'proxyUsername', 'scheduleYear', 'scheduleSemester', 'inStplIdno', 'inSespIdno', 'inBlokIdno'];
+                // ponytail: rok se neukládá, jinak by v paměti navždy zůstal starý akademický rok
+                const now = new Date();
+                document.getElementById('scheduleYear').value = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+                const fields = ['apiEndpoint', 'studentNumber', 'proxyUsername', 'scheduleSemester', 'inStplIdno', 'inSespIdno', 'inBlokIdno'];
                 localStorage.removeItem('stag_proxyPassword'); // Smazat případné uložené heslo z minula
                 fields.forEach(id => {
                     const el = document.getElementById(id);
@@ -988,7 +991,9 @@
                         hDo = item.hodinaSkutDo ? parseTime(item.hodinaSkutDo, true) : hOd;
                     }
 
-                    if (hOd === null || !item.denZkr || item.nekonaSe === 'A' || item.nekonaSe === 'Ano') {
+                    // zkoušky, zápisy před zk. apod. nejsou výuka
+                    const isTeaching = typZkr.startsWith('PŘ') || typZkr.startsWith('CV') || typZkr.startsWith('SE');
+                    if (!isTeaching || hOd === null || !item.denZkr || item.nekonaSe === 'A' || item.nekonaSe === 'Ano') {
                         return null;
                     }
 
